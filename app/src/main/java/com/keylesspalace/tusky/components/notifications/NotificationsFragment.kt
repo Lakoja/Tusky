@@ -98,9 +98,6 @@ class NotificationsFragment :
     @Inject
     lateinit var viewModelFactory: ViewModelFactory
 
-    @Inject
-    lateinit var eventHub: EventHub
-
     private val viewModel: NotificationsViewModel by viewModels { viewModelFactory }
 
     private val binding by viewBinding(FragmentTimelineNotificationsBinding::bind)
@@ -108,39 +105,6 @@ class NotificationsFragment :
     private lateinit var adapter: NotificationsPagingAdapter
 
     private lateinit var layoutManager: LinearLayoutManager
-
-    private suspend fun handleNewNotifications(event: NewNotificationsEvent) {
-        if (event.accountId != accountManager.activeAccount!!.accountId) {
-            return
-        }
-
-        if (event.notifications.isEmpty()) {
-            return
-        }
-
-        val notificationViews = event.notifications.map { notification ->
-            notification.toViewData(
-                isShowingContent = viewModel.statusDisplayOptions.value.showSensitiveMedia ||
-                    !(notification.status?.actionableStatus?.sensitive ?: false),
-                isExpanded = viewModel.statusDisplayOptions.value.openSpoiler,
-                isCollapsed = true
-            )
-        }
-
-       val  factory = InvalidatingPagingSourceFactory {
-            NotificationsStaticPagingSource(notificationViews)
-        }
-
-        val pager = Pager(
-            config = PagingConfig(pageSize = notificationViews.size),
-            null,
-            pagingSourceFactory = factory
-        )
-
-        pager.flow.collectLatest { pagingData ->
-            adapter.submitData(pagingData)
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -459,15 +423,6 @@ class NotificationsFragment :
                         }
                     }
             }
-        }
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            eventHub.events
-                .collect { event ->
-                    when (event) {
-                        is NewNotificationsEvent -> handleNewNotifications(event)
-                    }
-                }
         }
     }
 

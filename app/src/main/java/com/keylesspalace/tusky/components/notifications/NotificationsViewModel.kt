@@ -30,6 +30,7 @@ import com.keylesspalace.tusky.appstore.BlockEvent
 import com.keylesspalace.tusky.appstore.EventHub
 import com.keylesspalace.tusky.appstore.MuteConversationEvent
 import com.keylesspalace.tusky.appstore.MuteEvent
+import com.keylesspalace.tusky.appstore.NewNotificationsEvent
 import com.keylesspalace.tusky.appstore.PreferenceChangedEvent
 import com.keylesspalace.tusky.components.timeline.util.ifExpected
 import com.keylesspalace.tusky.db.AccountManager
@@ -368,6 +369,12 @@ class NotificationsViewModel @Inject constructor(
                 }
                 .collect {
                     statusDisplayOptions.emit(it)
+                }
+            eventHub.events
+                .filterIsInstance<NewNotificationsEvent>()
+                .filter { it.accountId == accountManager.activeAccount!!.accountId && it.notifications.isNotEmpty() }
+                .collect {
+                    repository.invalidate()
                 }
         }
 
