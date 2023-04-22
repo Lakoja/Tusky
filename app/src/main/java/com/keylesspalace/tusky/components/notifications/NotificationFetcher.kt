@@ -26,13 +26,16 @@ class NotificationFetcher @Inject constructor(
             if (account.notificationsEnabled) {
                 try {
                     val notifications = fetchNotifications(account)
-                    notifications.forEachIndexed { index, notification ->
-                        NotificationHelper.make(context, notification, account, index == 0)
-                    }
-                    accountManager.saveAccount(account)
 
-                    runBlocking {
-                        eventHub.dispatch(NewNotificationsEvent(account.accountId, notifications))
+                    if (notifications.isNotEmpty()) {
+                        notifications.forEachIndexed { index, notification ->
+                            NotificationHelper.make(context, notification, account, index == 0)
+                        }
+                        accountManager.saveAccount(account) // TODO does this need to be saved when there are no notifications?
+
+                        runBlocking {
+                            eventHub.dispatch(NewNotificationsEvent(account.accountId, notifications))
+                        }
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Error while fetching notifications", e)

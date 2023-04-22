@@ -357,25 +357,28 @@ class NotificationsViewModel @Inject constructor(
         )
 
         viewModelScope.launch {
-            eventHub.events
-                .filterIsInstance<PreferenceChangedEvent>()
-                .filter { StatusDisplayOptions.prefKeys.contains(it.preferenceKey) }
-                .map {
-                    statusDisplayOptions.value.make(
-                        preferences,
-                        it.preferenceKey,
-                        accountManager.activeAccount!!
-                    )
+            eventHub.events.collect { event ->
+                when (event) {
+                    is NewNotificationsEvent -> {
+                        if (event.accountId != accountManager.activeAccount!!.accountId || event.notifications.isEmpty()) {
+                            return@collect
+                        }
+                        repository.invalidate()
+                    }
+                    is PreferenceChangedEvent -> {
+                        if (!StatusDisplayOptions.prefKeys.contains(event.preferenceKey)) {
+                            return@collect
+                        }
+                        statusDisplayOptions.emit(
+                            statusDisplayOptions.value.make(
+                                preferences,
+                                event.preferenceKey,
+                                accountManager.activeAccount!!
+                            )
+                        )
+                    }
                 }
-                .collect {
-                    statusDisplayOptions.emit(it)
-                }
-            eventHub.events
-                .filterIsInstance<NewNotificationsEvent>()
-                .filter { it.accountId == accountManager.activeAccount!!.accountId && it.notifications.isNotEmpty() }
-                .collect {
-                    repository.invalidate()
-                }
+            }
         }
 
         // Handle UiAction.ClearNotifications
