@@ -78,7 +78,7 @@ class TimelineCasesTest {
             url = "https://mastodon.social/@Tusky/100571663297225812",
             account = mock(),
             inReplyToId = null,
-            inReplyToAccountId = null,
+            inReplyToAccount = null,
             reblog = null,
             content = "",
             createdAt = Date(),
