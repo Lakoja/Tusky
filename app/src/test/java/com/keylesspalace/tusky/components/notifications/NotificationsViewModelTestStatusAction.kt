@@ -45,6 +45,7 @@ class NotificationsViewModelTestStatusAction : NotificationsViewModelTestBase() 
     private val status = mockStatus(pollOptions = listOf("Choice 1", "Choice 2", "Choice 3"))
     private val statusViewData = StatusViewData.Concrete(
         status = status,
+        inReplyToAccount = null,
         isExpanded = true,
         isShowingContent = false,
         isCollapsed = false

@@ -94,7 +94,7 @@ internal class StatusNotificationViewHolder(
                 showNotificationContent(true)
 
                 // TODO! This is _quite_ risky: at least in half of the cases of a parameter mismatch here (after code changes) there will be no crash (?)
-                val (_, _, account, _, _, _, _, _, createdAt) = statusViewData.actionable
+                val (_, _, account, _, _, _, _, createdAt) = statusViewData.actionable
                 setDisplayName(account.name, account.emojis, statusDisplayOptions.animateEmojis)
                 setUsername(account.username)
                 setCreatedAt(createdAt, statusDisplayOptions.useAbsoluteTime)
