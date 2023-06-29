@@ -23,6 +23,7 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
 import androidx.paging.filter
+import com.google.gson.Gson
 import com.keylesspalace.tusky.appstore.BookmarkEvent
 import com.keylesspalace.tusky.appstore.EventHub
 import com.keylesspalace.tusky.appstore.FavoriteEvent
@@ -30,6 +31,7 @@ import com.keylesspalace.tusky.appstore.PinEvent
 import com.keylesspalace.tusky.appstore.ReblogEvent
 import com.keylesspalace.tusky.components.timeline.util.ifExpected
 import com.keylesspalace.tusky.db.AccountManager
+import com.keylesspalace.tusky.db.AppDatabase
 import com.keylesspalace.tusky.entity.Filter
 import com.keylesspalace.tusky.entity.Poll
 import com.keylesspalace.tusky.entity.Status
@@ -60,7 +62,9 @@ class NetworkTimelineViewModel @Inject constructor(
     eventHub: EventHub,
     accountManager: AccountManager,
     sharedPreferences: SharedPreferences,
-    filterModel: FilterModel
+    filterModel: FilterModel,
+    private val db: AppDatabase,
+    private val gson: Gson
 ) : TimelineViewModel(timelineCases, api, eventHub, accountManager, sharedPreferences, filterModel) {
 
     var currentSource: NetworkTimelinePagingSource? = null
@@ -79,7 +83,7 @@ class NetworkTimelineViewModel @Inject constructor(
                 currentSource = source
             }
         },
-        remoteMediator = NetworkTimelineRemoteMediator(accountManager, this)
+        remoteMediator = NetworkTimelineRemoteMediator(accountManager, this, db, gson)
     ).flow
         .map { pagingData ->
             pagingData.filter(Dispatchers.Default.asExecutor()) { statusViewData ->
