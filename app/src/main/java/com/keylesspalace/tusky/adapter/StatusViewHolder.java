@@ -16,18 +16,25 @@
 package com.keylesspalace.tusky.adapter;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.text.InputFilter;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.TextUtils;
+import android.text.style.DynamicDrawableSpan;
+import android.text.style.ImageSpan;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.keylesspalace.tusky.R;
-import com.keylesspalace.tusky.entity.Emoji;
 import com.keylesspalace.tusky.entity.Filter;
 import com.keylesspalace.tusky.entity.Status;
 import com.keylesspalace.tusky.entity.TimelineAccount;
@@ -38,9 +45,6 @@ import com.keylesspalace.tusky.util.SmartLengthInputFilter;
 import com.keylesspalace.tusky.util.StatusDisplayOptions;
 import com.keylesspalace.tusky.util.StringUtils;
 import com.keylesspalace.tusky.viewdata.StatusViewData;
-
-import java.util.Collections;
-import java.util.List;
 
 import at.connyduck.sparkbutton.helpers.Utils;
 
@@ -53,12 +57,45 @@ public class StatusViewHolder extends StatusBaseViewHolder {
     private final TextView favouritedCountLabel;
     private final TextView reblogsCountLabel;
 
+    /** String builder to use when creating statusInfo view content */
+    private final SpannableStringBuilder statusInfoSpannableStringBuilder = new SpannableStringBuilder();
+
+    /** Span that contains the "reply" icon */
+    private final SpannableString iconReplySpan;
+    /** Span that contains the "reblog" icon */
+    private final SpannableString iconReblogSpan;
+
     public StatusViewHolder(View itemView) {
         super(itemView);
         statusInfo = itemView.findViewById(R.id.status_info);
         contentCollapseButton = itemView.findViewById(R.id.button_toggle_content);
         favouritedCountLabel = itemView.findViewById(R.id.status_favourites_count);
         reblogsCountLabel = itemView.findViewById(R.id.status_insets);
+
+        Context context = statusInfo.getContext();
+        ImageSpan span = new ImageSpan(
+            AppCompatResources.getDrawable(context, R.drawable.ic_reply_18dp),
+            DynamicDrawableSpan.ALIGN_BASELINE
+        );
+
+        Drawable drawable = AppCompatResources.getDrawable(context, R.drawable.ic_reply_18dp);
+        assert drawable != null;
+        drawable.setBounds(0, 0, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight());
+
+        iconReplySpan = new SpannableString("  ");
+        iconReplySpan.setSpan(
+            new ImageSpan(drawable, DynamicDrawableSpan.ALIGN_BOTTOM),
+            0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+
+        drawable = AppCompatResources.getDrawable(context, R.drawable.ic_reblog_18dp);
+        assert drawable != null;
+        drawable.setBounds(0, 0, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight());
+
+        iconReblogSpan = new SpannableString("  ");
+        iconReblogSpan.setSpan(new ImageSpan(drawable, DynamicDrawableSpan.ALIGN_BOTTOM),
+            0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
     }
 
     @Override
@@ -73,26 +110,10 @@ public class StatusViewHolder extends StatusBaseViewHolder {
 
             setupCollapsedState(sensitive, expanded, status, listener);
 
-            Status reblogging = status.getRebloggingStatus();
-            TimelineAccount repliedTo = status.getInReplyToAccount();
-            boolean isReplyOnly = repliedTo != null && reblogging == null;
-
-            boolean hasStatusContext = reblogging != null || repliedTo != null;
-
-            if (!hasStatusContext || status.getFilterAction() == Filter.Action.WARN) {
+            if (status.getFilterAction() == Filter.Action.WARN) {
                 hideStatusInfo();
             } else {
-                String accountName = "<unknown>";
-                List<Emoji> emojis = Collections.emptyList();
-                if (reblogging != null) {
-                    accountName = reblogging.getAccount().getName();
-                    emojis = reblogging.getAccount().getEmojis();
-                } else if (repliedTo != null) { // TODO Why would this be always != null (as code inspection warns)?
-                    accountName = repliedTo.getName();
-                    emojis = repliedTo.getEmojis();
-                }
-
-                setStatusInfoText(isReplyOnly, accountName, emojis, statusDisplayOptions);
+                setStatusInfo(statusInfo.getContext(), status, statusDisplayOptions);
                 statusInfo.setOnClickListener(v -> listener.onOpenReblog(getBindingAdapterPosition()));
             }
 
@@ -106,20 +127,126 @@ public class StatusViewHolder extends StatusBaseViewHolder {
         super.setupWithStatus(status, listener, statusDisplayOptions, payloads);
     }
 
-    private void setStatusInfoText(final boolean isReply,
-                                   final CharSequence name,
-                                   final List<Emoji> accountEmoji,
-                                   final StatusDisplayOptions statusDisplayOptions) {
-        Context context = statusInfo.getContext();
-        CharSequence wrappedName = StringUtils.unicodeWrap(name);
-        CharSequence statusContextText = context.getString(isReply ? R.string.post_replied_format : R.string.post_boosted_format, wrappedName);
-        CharSequence emojifiedText = CustomEmojiHelper.emojify(
-                statusContextText, accountEmoji, statusInfo, statusDisplayOptions.animateEmojis()
+    /**
+     * Sets the content and visibility of the status info view.
+     * <p>
+     * The view contains 0 or more of the following pieces of information:
+     * <p>
+     * - A reblog marker, with the name of the account that performed the reblog
+     * - A thread marker
+     *   - "In reply", if it's a reply, possibly with the name of the account it's replying to
+     * - (not implemented) A hashtag marker, showing any hashtags the user follows for this timeline
+     *   that are in the post.
+     */
+    private void setStatusInfo(
+        Context context,
+        StatusViewData.Concrete statusViewData,
+        StatusDisplayOptions statusDisplayOptions
+    ) {
+        // Reblogging
+        CharSequence reblogText = getRebloggedByText(
+            context,
+            statusViewData.getRebloggingStatus(),
+            statusDisplayOptions
         );
-        statusInfo.setText(emojifiedText);
-        statusInfo.setCompoundDrawablesWithIntrinsicBounds(isReply ? R.drawable.ic_reply_all_24dp : R.drawable.ic_reblog_24dp, 0, 0, 0);
+
+        // Reply
+        CharSequence replyText = getReplyText(
+            context,
+            statusViewData,
+            statusDisplayOptions
+        );
+
+        // TODO: Hashtags
+
+        if (reblogText == null && replyText == null) {
+            hideStatusInfo();
+            return;
+        }
+
+        statusInfoSpannableStringBuilder.clear();
+        statusInfoSpannableStringBuilder.clearSpans();
+
+        if (replyText != null && reblogText != null) {
+            statusInfoSpannableStringBuilder
+                .append(iconReplySpan)
+                .append(replyText)
+                .append(" • ")
+                .append(iconReblogSpan)
+                .append(reblogText);
+            statusInfo.setText(statusInfoSpannableStringBuilder);
+        } else if (reblogText == null) {
+            statusInfoSpannableStringBuilder
+                .append(iconReplySpan)
+                .append(replyText);
+            statusInfo.setText(statusInfoSpannableStringBuilder);
+        } else {
+            statusInfoSpannableStringBuilder
+                .append(iconReblogSpan)
+                .append(reblogText);
+            statusInfo.setText(statusInfoSpannableStringBuilder);
+        }
 
         statusInfo.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * @return text to display in the "reply" portion of the statusInfo.
+     */
+    @Nullable
+    private CharSequence getReplyText(
+        Context context,
+        @NonNull StatusViewData.Concrete statusViewData,
+        @NonNull StatusDisplayOptions statusDisplayOptions
+    ) {
+        Status status = statusViewData.getStatus();
+
+        // This is not a reply
+        String replyAccountId = status.getInReplyToAccountId();
+        if (replyAccountId == null) return null;
+
+        // It's a reply, get the account it's replying to (may be null if the account info
+        // wasn't known)
+        TimelineAccount account = statusViewData.getInReplyToAccount();
+
+        // May not know the account details of the account it's replying to. Try and find the
+        // username in the mentions. Fall back to the default string if it's not there.
+        if (account == null) {
+            for (Status.Mention mention : status.getMentions()) {
+                if (mention.getId().equals(replyAccountId)) {
+                    return context.getString(R.string.post_reply_format, "@" + mention.getLocalUsername());
+                }
+            }
+            return context.getString(R.string.post_reply);
+        }
+
+        String name = account.getName();
+        CharSequence wrappedName = StringUtils.unicodeWrap(name);
+        CharSequence text = context.getString(R.string.post_reply_format, wrappedName);
+
+        return CustomEmojiHelper.emojify(
+            text, account.getEmojis(), statusInfo,
+            statusDisplayOptions.animateEmojis()
+        );
+    }
+
+    /**
+     * @return text to display in the "boosted" portion of the statusInfo.
+     */
+    @Nullable
+    private CharSequence getRebloggedByText(
+        Context context,
+        @Nullable Status status,
+        @NonNull final StatusDisplayOptions statusDisplayOptions
+    ) {
+        if (status == null) return null;
+
+        String name = status.getAccount().getName();
+        CharSequence wrappedName = StringUtils.unicodeWrap(name);
+        CharSequence text = context.getString(R.string.post_boosted_format, wrappedName);
+        return CustomEmojiHelper.emojify(
+            text, status.getAccount().getEmojis(), statusInfo, statusDisplayOptions.animateEmojis()
+        );
     }
 
     // don't use this on the same ViewHolder as setRebloggedByDisplayName, will cause recycling issues as paddings are changed
@@ -139,7 +266,7 @@ public class StatusViewHolder extends StatusBaseViewHolder {
         favouritedCountLabel.setText(NumberUtils.formatNumber(favouritedCount, 1000));
     }
 
-    protected void hideStatusInfo() {
+    public void hideStatusInfo() {
         statusInfo.setVisibility(View.GONE);
     }
 

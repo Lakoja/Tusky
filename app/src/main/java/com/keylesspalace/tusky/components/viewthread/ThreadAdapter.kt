@@ -52,6 +52,7 @@ class ThreadAdapter(
     override fun onBindViewHolder(viewHolder: StatusBaseViewHolder, position: Int) {
         val status = getItem(position)
         viewHolder.setupWithStatus(status, statusActionListener, statusDisplayOptions)
+        (viewHolder as? StatusViewHolder)?.hideStatusInfo()
     }
 
     override fun getItemViewType(position: Int): Int {
