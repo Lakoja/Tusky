@@ -15,6 +15,7 @@
 
 package com.keylesspalace.tusky.adapter;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.text.InputFilter;
@@ -49,6 +50,8 @@ import com.keylesspalace.tusky.viewdata.StatusViewData;
 import at.connyduck.sparkbutton.helpers.Utils;
 
 public class StatusViewHolder extends StatusBaseViewHolder {
+    @SuppressLint("unused")
+    private static final String TAG = "StatusBaseViewHolder";
     private static final InputFilter[] COLLAPSE_INPUT_FILTER = new InputFilter[]{SmartLengthInputFilter.INSTANCE};
     private static final InputFilter[] NO_INPUT_FILTER = new InputFilter[0];
 
@@ -146,7 +149,7 @@ public class StatusViewHolder extends StatusBaseViewHolder {
         // Reblogging
         CharSequence reblogText = getRebloggedByText(
             context,
-            statusViewData.getRebloggingStatus(),
+            statusViewData,
             statusDisplayOptions
         );
 
@@ -199,7 +202,7 @@ public class StatusViewHolder extends StatusBaseViewHolder {
         @NonNull StatusViewData.Concrete statusViewData,
         @NonNull StatusDisplayOptions statusDisplayOptions
     ) {
-        Status status = statusViewData.getStatus();
+        Status status = statusViewData.getActionable();
 
         // This is not a reply
         String replyAccountId = status.getInReplyToAccountId();
@@ -207,25 +210,30 @@ public class StatusViewHolder extends StatusBaseViewHolder {
 
         // It's a reply, get the account it's replying to (may be null if the account info
         // wasn't known)
-        TimelineAccount account = statusViewData.getInReplyToAccount();
+        TimelineAccount inReplyToAccount = statusViewData.getInReplyToAccount();
 
         // May not know the account details of the account it's replying to. Try and find the
         // username in the mentions. Fall back to the default string if it's not there.
-        if (account == null) {
+        if (inReplyToAccount == null) {
             for (Status.Mention mention : status.getMentions()) {
                 if (mention.getId().equals(replyAccountId)) {
-                    return context.getString(R.string.post_reply_format, "@" + mention.getLocalUsername());
+                    return context.getString(R.string.post_reply_format, "@" + mention.getUsername());
                 }
             }
             return context.getString(R.string.post_reply);
         }
 
-        String name = account.getName();
+        // Replying to themselves?
+        if (inReplyToAccount.getId().equals(status.getAccount().getId())) {
+            return context.getString(R.string.post_reply_self);
+        }
+
+        String name = inReplyToAccount.getName();
         CharSequence wrappedName = StringUtils.unicodeWrap(name);
         CharSequence text = context.getString(R.string.post_reply_format, wrappedName);
 
         return CustomEmojiHelper.emojify(
-            text, account.getEmojis(), statusInfo,
+            text, inReplyToAccount.getEmojis(), statusInfo,
             statusDisplayOptions.animateEmojis()
         );
     }
@@ -236,16 +244,22 @@ public class StatusViewHolder extends StatusBaseViewHolder {
     @Nullable
     private CharSequence getRebloggedByText(
         Context context,
-        @Nullable Status status,
+        @NonNull StatusViewData.Concrete statusViewData,
         @NonNull final StatusDisplayOptions statusDisplayOptions
     ) {
-        if (status == null) return null;
+        Status rebloggedStatus = statusViewData.getRebloggingStatus();
 
-        String name = status.getAccount().getName();
+        if (rebloggedStatus == null) return null;
+
+        if (statusViewData.getStatus().getAccount().getId().equals(rebloggedStatus.getId())) {
+            return context.getString(R.string.post_boost_self);
+        }
+
+        String name = rebloggedStatus.getAccount().getName();
         CharSequence wrappedName = StringUtils.unicodeWrap(name);
         CharSequence text = context.getString(R.string.post_boosted_format, wrappedName);
         return CustomEmojiHelper.emojify(
-            text, status.getAccount().getEmojis(), statusInfo, statusDisplayOptions.animateEmojis()
+            text, rebloggedStatus.getAccount().getEmojis(), statusInfo, statusDisplayOptions.animateEmojis()
         );
     }
 
