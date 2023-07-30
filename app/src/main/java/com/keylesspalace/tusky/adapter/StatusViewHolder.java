@@ -45,6 +45,7 @@ import com.keylesspalace.tusky.util.NumberUtils;
 import com.keylesspalace.tusky.util.SmartLengthInputFilter;
 import com.keylesspalace.tusky.util.StatusDisplayOptions;
 import com.keylesspalace.tusky.util.StringUtils;
+import com.keylesspalace.tusky.util.TextWithContentDescription;
 import com.keylesspalace.tusky.viewdata.StatusViewData;
 
 import at.connyduck.sparkbutton.helpers.Utils;
@@ -147,14 +148,14 @@ public class StatusViewHolder extends StatusBaseViewHolder {
         StatusDisplayOptions statusDisplayOptions
     ) {
         // Reblogging
-        CharSequence reblogText = getRebloggedByText(
+        TextWithContentDescription reblogText = getRebloggedByText(
             context,
             statusViewData,
             statusDisplayOptions
         );
 
         // Reply
-        CharSequence replyText = getReplyText(
+        TextWithContentDescription replyText = getReplyText(
             context,
             statusViewData,
             statusDisplayOptions
@@ -173,31 +174,41 @@ public class StatusViewHolder extends StatusBaseViewHolder {
         if (replyText != null && reblogText != null) {
             statusInfoSpannableStringBuilder
                 .append(iconReplySpan)
-                .append(replyText)
+                .append(replyText.getText())
                 .append(" • ")
                 .append(iconReblogSpan)
-                .append(reblogText);
+                .append(reblogText.getText());
             statusInfo.setText(statusInfoSpannableStringBuilder);
+            statusInfo.setContentDescription(
+                context.getString(
+                    R.string.post_reply_and_boost_description,
+                    replyText.getContentDescription(),
+                    reblogText.getContentDescription()
+                )
+            );
         } else if (reblogText == null) {
             statusInfoSpannableStringBuilder
                 .append(iconReplySpan)
-                .append(replyText);
+                .append(replyText.getText());
             statusInfo.setText(statusInfoSpannableStringBuilder);
+            statusInfo.setContentDescription(replyText.getContentDescription());
         } else {
             statusInfoSpannableStringBuilder
                 .append(iconReblogSpan)
-                .append(reblogText);
+                .append(reblogText.getText());
             statusInfo.setText(statusInfoSpannableStringBuilder);
+            statusInfo.setContentDescription(reblogText.getContentDescription());
         }
 
         statusInfo.setVisibility(View.VISIBLE);
     }
 
+
     /**
      * @return text to display in the "reply" portion of the statusInfo.
      */
     @Nullable
-    private CharSequence getReplyText(
+    private TextWithContentDescription getReplyText(
         Context context,
         @NonNull StatusViewData.Concrete statusViewData,
         @NonNull StatusDisplayOptions statusDisplayOptions
@@ -217,24 +228,37 @@ public class StatusViewHolder extends StatusBaseViewHolder {
         if (inReplyToAccount == null) {
             for (Status.Mention mention : status.getMentions()) {
                 if (mention.getId().equals(replyAccountId)) {
-                    return context.getString(R.string.post_reply_format, "@" + mention.getUsername());
+                    String username = "@" + mention.getUsername();
+                    return new TextWithContentDescription(
+                        context.getString(R.string.post_reply_format, username),
+                        context.getString(R.string.post_reply_format_description, username)
+                    );
                 }
             }
-            return context.getString(R.string.post_reply);
+            return new TextWithContentDescription(
+                context.getString(R.string.post_reply),
+                context.getString(R.string.post_reply)
+            );
         }
 
         // Replying to themselves?
         if (inReplyToAccount.getId().equals(status.getAccount().getId())) {
-            return context.getString(R.string.post_reply_self);
+            return new TextWithContentDescription(
+                context.getString(R.string.post_reply_self),
+                context.getString(R.string.post_reply_self_description)
+            );
         }
 
         String name = inReplyToAccount.getName();
         CharSequence wrappedName = StringUtils.unicodeWrap(name);
         CharSequence text = context.getString(R.string.post_reply_format, wrappedName);
 
-        return CustomEmojiHelper.emojify(
-            text, inReplyToAccount.getEmojis(), statusInfo,
-            statusDisplayOptions.animateEmojis()
+        return new TextWithContentDescription(
+            CustomEmojiHelper.emojify(
+                text, inReplyToAccount.getEmojis(), statusInfo,
+                statusDisplayOptions.animateEmojis()
+            ),
+            text
         );
     }
 
@@ -242,7 +266,7 @@ public class StatusViewHolder extends StatusBaseViewHolder {
      * @return text to display in the "boosted" portion of the statusInfo.
      */
     @Nullable
-    private CharSequence getRebloggedByText(
+    private TextWithContentDescription getRebloggedByText(
         Context context,
         @NonNull StatusViewData.Concrete statusViewData,
         @NonNull final StatusDisplayOptions statusDisplayOptions
@@ -252,14 +276,20 @@ public class StatusViewHolder extends StatusBaseViewHolder {
         if (rebloggedStatus == null) return null;
 
         if (statusViewData.getStatus().getAccount().getId().equals(rebloggedStatus.getId())) {
-            return context.getString(R.string.post_boost_self);
+            return new TextWithContentDescription(
+                context.getString(R.string.post_boost_self),
+                context.getString(R.string.post_boost_self_description)
+            );
         }
 
         String name = rebloggedStatus.getAccount().getName();
         CharSequence wrappedName = StringUtils.unicodeWrap(name);
         CharSequence text = context.getString(R.string.post_boosted_format, wrappedName);
-        return CustomEmojiHelper.emojify(
-            text, rebloggedStatus.getAccount().getEmojis(), statusInfo, statusDisplayOptions.animateEmojis()
+        return new TextWithContentDescription(
+            CustomEmojiHelper.emojify(
+                text, rebloggedStatus.getAccount().getEmojis(), statusInfo, statusDisplayOptions.animateEmojis()
+            ),
+            context.getString(R.string.post_boosted_format_description, wrappedName)
         );
     }
 

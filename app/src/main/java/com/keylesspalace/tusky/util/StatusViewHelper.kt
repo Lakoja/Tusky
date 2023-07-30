@@ -341,3 +341,12 @@ class StatusViewHelper(private val itemView: View) {
         val NO_INPUT_FILTER = arrayOfNulls<InputFilter>(0)
     }
 }
+
+/**
+ * Return type that can contain text for display and different text to use as the
+ * contentDescription.
+ */
+data class TextWithContentDescription(
+    val text: CharSequence,
+    val contentDescription: CharSequence
+)
